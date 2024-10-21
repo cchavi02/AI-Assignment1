@@ -3,6 +3,7 @@
 from warnings import warn
 import heapq
 import argparse # this library is needed in order to read from the command line
+import time
 
 
 class Node:
@@ -30,13 +31,13 @@ class Node:
 
     # defining greater than for purposes of heap queue
     def __gt__(self, other):
-        return self.f > other.
+        return self.f > other.f
     
 
 # function that reads a file and creates the maze
 def create_maze(file_name):
 
-    with open(file_path, 'r') as file:
+    with open(file_name, 'r') as file:
         # Read lines and create the grid while ignoring empty lines
         maze = [list(map(int, line.split())) for line in file if line.strip()]
 
@@ -48,7 +49,7 @@ def create_maze(file_name):
     start = (0, 0)  # Top-left corner
     goal = (rows - 1, cols - 1)  # Bottom-right corner
 
-    return grid, start, goal
+    return maze, start, goal
 
 #function that computes the correct heuristic
 def h_n(position, goal, heuristic_name) :
@@ -94,6 +95,7 @@ def astar(maze, start, end, heuristic, allow_diagonal_movement=True):
     start_node.g = start_node.h = start_node.f = 0
     end_node = Node(None, end)
     end_node.g = end_node.h = end_node.f = 0
+    cycles =0 #track how many cycles are detected
 
     # Initialize both open and closed list
     open_list = []
@@ -125,11 +127,18 @@ def astar(maze, start, end, heuristic, allow_diagonal_movement=True):
 
             # Get the current node
         current_node = heapq.heappop(open_list)
-        closed_list.append(current_node)
+
+        if current_node not in closed_list:
+           closed_list.append(current_node)
 
         # Found the goal
         if current_node == end_node:
-            return return_path(current_node)
+            solution = return_path(current_node)
+            cost = current_node.g
+            has_cycles = True if cycles > 0 else False
+            expanded = len(closed_list)
+
+            return solution, cost, expanded, has_cycles
 
         # Generate children
         children = []
@@ -158,12 +167,14 @@ def astar(maze, start, end, heuristic, allow_diagonal_movement=True):
         for child in children:
             # Child is on the closed list
             if len([closed_child for closed_child in closed_list if closed_child == child]) > 0:
+                cycles += 1
                 continue
 
             # Create the f, g, and h values
             child.g = current_node.g + maze[child.position[0]][child.position[1]]
-            child.h = ((child.position[0] - end_node.position[0]) ** 2) + (
-                        (child.position[1] - end_node.position[1]) ** 2)
+
+            # need a way to compute any heuristic
+            child.h = h_n(child.position, end_node.position, heuristic)
             child.f = child.g + child.h
 
             # Child is already in the open list
@@ -231,8 +242,25 @@ if __name__ == '__main__':
     h_name = args.h
 
     #get the grid and start and end locations
-    grid, start, goal = create_maze(args.file)
+    maze, start, goal = create_maze(args.file)
 
     #find the optimal path
-    path = astar(start, goal, h_name)
+    start_time = time.perf_counter()
+    if (h_name == 'dijkstra'):
+        path, cost, nodes_ex, cycles = dijkstra(maze, start, goal)
+    else:
+        path, cost, nodes_ex, cycles = astar(maze, start, goal, h_name)
+
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+
+
+
+
+
     print(path)
+    print(f'total cost: {cost}')
+    print(f'Nodes expanded: {nodes_ex}')
+    print(f'Cycles detected : {cycles}')
+    print(f'Time: {elapsed}')
+
